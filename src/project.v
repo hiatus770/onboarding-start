@@ -16,7 +16,7 @@ module tt_um_uwasic_onboarding_matias (
     input  wire       rst_n     // reset_n - low to reset
 );
 
-    assign uio_oe = 8'hFF; // set all ios to input  
+    assign uio_oe = 8'hFF; // set all ios to input
 
     // All output pins must be assigned. If not used, assign to 0.
     assign uo_out  = ui_in + uio_in;  // Example: ou_out is the sum of ui_in and uio_in
@@ -29,6 +29,21 @@ module tt_um_uwasic_onboarding_matias (
     wire [7:0] en_reg_pwm_15_8;
     wire [7:0] pwm_duty_cycle;
 
+    // Instantiate spi peripheral
+    spi_peripheral spi_peripheral_inst (
+        // declare the inputs for the peripheral model
+        .sclk(ui_in[0]),
+        .copi(ui_in[1]),
+        .cs(ui_in[2]),
+        // declare outputs for the spi model
+        .en_reg_out_7_0(en_reg_out_7_0),
+        .en_reg_out_15_8(en_reg_out_15_8),
+        .en_reg_pwm_7_0(en_reg_pwm_7_0),
+        .en_reg_pwm_15_8(en_reg_pwm_15_8),
+        .pwm_duty_cycle(pwm_duty_cycle)
+    );
+
+
     // Instantiate the PWM module
     pwm_peripheral pwm_peripheral_inst (
       .clk(clk),
@@ -40,6 +55,7 @@ module tt_um_uwasic_onboarding_matias (
       .pwm_duty_cycle(pwm_duty_cycle),
       .out({uio_out, uo_out})
     );
+
 
     // List all unused inputs to prevent warnings
     wire _unused = &{ena, clk, rst_n, 1'b0};
