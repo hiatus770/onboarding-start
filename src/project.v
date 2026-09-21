@@ -18,11 +18,6 @@ module tt_um_uwasic_onboarding_matias (
 
     assign uio_oe = 8'hFF; // set all ios to input
 
-    // All output pins must be assigned. If not used, assign to 0.
-    assign uo_out  = ui_in + uio_in;  // Example: ou_out is the sum of ui_in and uio_in
-    assign uio_out = 0;
-    assign uio_oe  = 0;
-
     wire [7:0] en_reg_out_7_0;
     wire [7:0] en_reg_out_15_8;
     wire [7:0] en_reg_pwm_7_0;
@@ -35,6 +30,8 @@ module tt_um_uwasic_onboarding_matias (
         .sclk(ui_in[0]),
         .copi(ui_in[1]),
         .cs(ui_in[2]),
+        .clk(clk),
+        .rst_n(rst_n),
         // declare outputs for the spi model
         .en_reg_out_7_0(en_reg_out_7_0),
         .en_reg_out_15_8(en_reg_out_15_8),
