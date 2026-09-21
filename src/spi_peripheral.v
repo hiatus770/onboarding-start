@@ -70,7 +70,7 @@ module spi_peripheral #(
         end else if (bits == 5'd16) begin // once we reach 16 bits we reset
             bits <= 5'b00000; // reset our count once we reset our protocol
             // check if transaction bit was set
-            if (shift[15]) begin
+            if (shift[15] && (shift[14:8] <= MAX_ADDRESS)) begin
                 if (shift[14:8] == 7'h00) begin
                     regfile[0] <= shift[7:0];
                 end
