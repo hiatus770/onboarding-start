@@ -9,12 +9,13 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-Not really sure yet 
+Takes in SPI data, can write to a set amount of registers. Data is stored in a shift register. For metastability 2 flip flops are chained together.
 
 ## How to test
 
-I'm also not sure yet 
+Once all required deps are installed and venv is setup
+```cd test && make -B``` 
 
 ## External hardware
 
-I'm not sure yet
+N/A
