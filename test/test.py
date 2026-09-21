@@ -3,10 +3,25 @@
 
 import cocotb
 from cocotb.clock import Clock
+from cocotb.result import SimTimeoutError
 from cocotb.triggers import RisingEdge
 from cocotb.triggers import ClockCycles
+from cocotb.triggers import *
 from cocotb.types import Logic
 from cocotb.types import LogicArray
+
+async def reset(dut):
+    # reset state
+    dut._log.info("Reset")
+    dut.ena.value = 1
+    ncs = 1
+    bit = 0
+    sclk = 0
+    dut.ui_in.value = ui_in_logicarray(ncs, bit, sclk)
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 5)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 5)
 
 async def await_half_sclk(dut):
     """Wait for the SCLK signal to go high or low."""
@@ -28,7 +43,7 @@ async def send_spi_transaction(dut, r_w, address, data):
     - 1 bit for Read/Write
     - 7 bits for address
     - 8 bits for data
-    
+
     Parameters:
     - r_w: boolean, True for write, False for read
     - address: int, 7-bit address (0-127)
@@ -107,7 +122,7 @@ async def test_spi(dut):
     dut._log.info("Write transaction, address 0x00, data 0xF0")
     ui_in_val = await send_spi_transaction(dut, 1, 0x00, 0xF0)  # Write transaction
     assert dut.uo_out.value == 0xF0, f"Expected 0xF0, got {dut.uo_out.value}"
-    await ClockCycles(dut.clk, 1000) 
+    await ClockCycles(dut.clk, 1000)
 
     dut._log.info("Write transaction, address 0x01, data 0xCC")
     ui_in_val = await send_spi_transaction(dut, 1, 0x01, 0xCC)  # Write transaction
@@ -122,7 +137,7 @@ async def test_spi(dut):
     ui_in_val = await send_spi_transaction(dut, 0, 0x30, 0xBE)
     assert dut.uo_out.value == 0xF0, f"Expected 0xF0, got {dut.uo_out.value}"
     await ClockCycles(dut.clk, 100)
-    
+
     dut._log.info("Read transaction (invalid), address 0x41 (invalid), data 0xEF")
     ui_in_val = await send_spi_transaction(dut, 0, 0x41, 0xEF)
     await ClockCycles(dut.clk, 100)
@@ -152,10 +167,82 @@ async def test_spi(dut):
 @cocotb.test()
 async def test_pwm_freq(dut):
     # Write your test here
-    dut._log.info("PWM Frequency test completed successfully")
+    dut._log.info("PWM Frequency test starting")
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
 
+    # reset state
+    await reset(dut)
+
+    # enable the output using a bit mask 00000001  means enable pin 0
+    await send_spi_transaction(dut, 1, 0x00, 0x01) # we are enabling output on uo_out[0] for the
+    await send_spi_transaction(dut, 1, 0x02, 0x01) # we are enabling the pwm output on this one
+    await send_spi_transaction(dut, 1, 0x04, 0x80) # writing 50% pwm
+
+    # write 50% pwm and then measure to be around 3000hz
+    await Edge(dut.uo_out)
+    start_time = cocotb.utils.get_sim_time(units="ns")
+    await Edge(dut.uo_out)
+    end_time = cocotb.utils.get_sim_time(units="ns")
+
+    period = end_time - start_time;
+    freq = 1/period
+    assert (freq <= 3000 * 0.05 or freq >= 3000 * 0.95)
+
+async def measure_pwm_percent(dut):
+    # `````..`````..
+
+    await Edge(dut.uo_out) # wait for any edge
+    if ((int(dut.uo_out.value) & 0x1) == 0):
+        await Edge(dut.uo_out) # wait for a rising edge since we are currently not at one
+
+    time1 = cocotb.utils.get_sim_time(units="ns")
+
+    await Edge(dut.uo_out) # wait for falling edge
+    time2 = cocotb.utils.get_sim_time(units="ns")
+
+    await Edge(dut.uo_out) # wait for a rising edge
+    time3 = cocotb.utils.get_sim_time(units="ns")
+
+    return (time2-time1)/(time3-time1)
 
 @cocotb.test()
 async def test_pwm_duty(dut):
     # Write your test here
-    dut._log.info("PWM Duty Cycle test completed successfully")
+    dut._log.info("Pwm test starting")
+    clock = Clock(dut.clk, 100, units="ns")
+    cocotb.start_soon(clock.start())
+
+    await reset(dut)
+    await send_spi_transaction(dut, 1, 0x00, 0x01) # we are enabling output on uo_out[0] for the
+    await send_spi_transaction(dut, 1, 0x02, 0x01) # we are enabling the pwm output on this one
+    await send_spi_transaction(dut, 1, 0x04, 0x80) # writing 50% pwm
+
+    percent = await measure_pwm_percent(dut)
+    dut._log.info("Percent: %0.3f", percent)
+
+    for i in range(1,10):
+        pct = i * 0.1
+        await send_spi_transaction(dut, 1, 0x04, int((pct) * 255)) # writing 100%
+        meas = await measure_pwm_percent(dut)
+        assert(pct * 0.95 <= meas <= pct * 1.05)
+
+
+    await send_spi_transaction(dut, 1, 0x04, 0x00) # writing 0%
+    assert(int(dut.uo_out.value) & 1 == 0)
+    try:
+        await with_timeout(Edge(dut.uo_out), 1000, "ns")
+    except SimTimeoutError:
+        # do nothing we pass
+        ...
+    assert(int(dut.uo_out.value) & 1 == 0)
+
+
+    await send_spi_transaction(dut, 1, 0x04, 0xFF) # writing 100%
+    assert(int(dut.uo_out.value) & 1 == 1)
+    try:
+        await with_timeout(Edge(dut.uo_out), 1000, "ns")
+    except SimTimeoutError:
+        # do nothing we pass
+        ...
+    assert(int(dut.uo_out.value) & 1 == 1)
