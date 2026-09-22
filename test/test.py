@@ -234,7 +234,9 @@ async def test_pwm_duty(dut):
         await with_timeout(Edge(dut.uo_out), 1000, "ns")
     except SimTimeoutError:
         # do nothing we pass
-        ...
+        pass
+    else: 
+        assert False, "Did not hold level"
     assert(int(dut.uo_out.value) & 1 == 0)
 
 
@@ -244,5 +246,7 @@ async def test_pwm_duty(dut):
         await with_timeout(Edge(dut.uo_out), 1000, "ns")
     except SimTimeoutError:
         # do nothing we pass
-        ...
+        pass
+    else: 
+        assert False, "Did not hold level"
     assert(int(dut.uo_out.value) & 1 == 1)
